@@ -1,0 +1,974 @@
+﻿@page "/" 
+
+@inject SqliteDataService Sql_dataService;
+@inject NavigationManager NavigationManager
+
+@code
+{
+    public class User_
+    {
+        public string Id { get; set; }
+        public string Username { get; set; }
+    }
+
+    List<User_> WhoseOnline = new List<User_>();
+}
+
+@code 
+{
+
+    bool WinMade = false;
+     
+    public bool playlock = false;
+
+    public class moves
+    {
+        public string UserId { get; set; }
+        public string Move { get; set; }
+        public string Char { get; set; }
+    }
+
+    public List<moves> GameMoves = new List<moves>();
+
+    public async Task MakeMove (string char_, string UserId, string Move)
+    {
+        if (State == "Playing")
+        {
+            Task.Run(() =>
+            {
+                hubConnection.SendAsync("SendString", $"MOVE:{char_}:{UserId}:{Move}");
+            });
+        }
+       
+    }
+
+    public string IsActive (string Move)
+    {
+        string i = "";
+
+        foreach (moves m in GameMoves)
+        {
+            if (m.Move.ToLower() == Move.ToLower())
+            {
+                i = m.Char;
+            }
+        }
+
+        return i;
+    }
+ 
+
+    public bool CheckWinningMoves(string userId)
+    {
+        List<string> playerMoves = new List<string>();
+
+        foreach (moves move in GameMoves)
+        {
+            if (move.UserId == userId)
+            {
+                playerMoves.Add(move.Move);
+            }
+        }
+
+        Console.WriteLine($"Moves made by player {userId}:");
+        foreach (string move in playerMoves)
+        {
+            Console.WriteLine(move);
+        }
+
+        /* Winning combinations
+         * a1 a2 a3
+         * b1 b2 b3
+         * c1 c2 c3
+         * c1 b2 a3
+         * a1 b2 c3
+         * a1 b1 c1
+         * a3 b3 c3
+         */
+
+        bool hasWinningMoves = false;
+
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a1") && playerMoves.Contains("a2") && playerMoves.Contains("a3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("b1") && playerMoves.Contains("b2") && playerMoves.Contains("b3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("c1") && playerMoves.Contains("c2") && playerMoves.Contains("c3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("c1") && playerMoves.Contains("b2") && playerMoves.Contains("a3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a1") && playerMoves.Contains("b2") && playerMoves.Contains("c3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a3") && playerMoves.Contains("b3") && playerMoves.Contains("c3");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a2") && playerMoves.Contains("b2") && playerMoves.Contains("c2");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a1") && playerMoves.Contains("b1") && playerMoves.Contains("c1");
+        if (!hasWinningMoves) hasWinningMoves = playerMoves.Contains("a3") && playerMoves.Contains("b3") && playerMoves.Contains("c3");
+
+        return hasWinningMoves;
+    }
+}
+
+
+
+
+
+
+
+
+@code {
+
+
+    class UserScore
+    {
+        public string ID { get; }
+        public int Score { get; }
+
+        public UserScore(string id, int score)
+        {
+            ID = id;
+            Score = score;
+        }  
+    }
+
+    List<UserScore> GetAllUserScores()
+    {
+        List<UserScore> userScores = new List<UserScore>();
+
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string selectQuery = "SELECT Username, (CAST(Wins AS INT) - CAST(Losses AS INT)) AS Score FROM Users ORDER BY Score DESC";
+
+            using (var command = new SQLiteCommand(selectQuery, connection))
+            {
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        string username = reader.GetString(0);
+                        int score = reader.GetInt32(1);
+
+                        UserScore userScore = new UserScore(username, score);
+                        userScores.Add(userScore);
+                    }
+                }
+            }
+        }
+
+        return userScores.OrderByDescending(x => x.Score).ToList();
+    }
+    public void CreateNewUser(string id, string username, string password, string wins, string losses, string draws)
+    {
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string insertQuery = "INSERT INTO Users (ID, Username, Password, Wins, Losses, Draws) VALUES (@ID, @Username, @Password, @Wins, @Losses, @Draws)";
+            using (var command = new SQLiteCommand(insertQuery, connection))
+            {
+                command.Parameters.AddWithValue("@ID", id);
+                command.Parameters.AddWithValue("@Username", username);
+                command.Parameters.AddWithValue("@Password", password);
+                command.Parameters.AddWithValue("@Wins", wins);
+                command.Parameters.AddWithValue("@Losses", losses);
+                command.Parameters.AddWithValue("@Draws", draws); 
+                command.ExecuteNonQuery();
+            }
+        }
+    }
+
+      
+    public void ModifyUserData(string userId, string columnName, string newValue)
+    {
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string updateQuery = $"UPDATE Users SET [{columnName}] = @NewValue WHERE ID = @UserId";
+            using (var command = new SQLiteCommand(updateQuery, connection))
+            {
+                command.Parameters.AddWithValue("@NewValue", newValue);
+                command.Parameters.AddWithValue("@UserId", userId);
+                command.ExecuteNonQuery();
+            }
+        }
+    }
+
+    public bool AuthenticateUser(string username, string password)
+    {
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string selectQuery = "SELECT COUNT(*) FROM Users WHERE Username = @Username AND Password = @Password";
+            using (var command = new SQLiteCommand(selectQuery, connection))
+            {
+                command.Parameters.AddWithValue("@Username", username);
+                command.Parameters.AddWithValue("@Password", password);
+
+                int result = Convert.ToInt32(command.ExecuteScalar());
+                return result > 0;
+            }
+        }
+    }
+
+    public string GetValueByUserId(string userId, string columnName)
+    {
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string selectQuery = $"SELECT {columnName} FROM Users WHERE ID = @UserId";
+            using (var command = new SQLiteCommand(selectQuery, connection))
+            {
+                command.Parameters.AddWithValue("@UserId", userId);
+
+                var result = command.ExecuteScalar();
+                if (result != null)
+                {
+                    return result.ToString();
+                }
+            }
+        }
+
+        return null;
+    }
+
+
+    public string GetUserIdByUsernameAndPassword(string username, string password)
+    {
+        using (var connection = Sql_dataService.GetDbConnection())
+        {
+            connection.Open();
+
+            string selectQuery = "SELECT ID FROM Users WHERE Username = @Username AND Password = @Password";
+            using (var command = new SQLiteCommand(selectQuery, connection))
+            {
+                command.Parameters.AddWithValue("@Username", username);
+                command.Parameters.AddWithValue("@Password", password);
+
+                var result = command.ExecuteScalar();
+                if (result != null)
+                {
+                    return result.ToString();
+                }
+            }
+        }
+
+        return null;
+    }
+
+}
+
+@code 
+{
+    public string CurrentUserId { get; set; }
+    public string CurrentUsername { get; set; }  
+    public string CurrentOpponent_UserId { get; set; }
+    public string State = "";
+    public int PlayerPosition = 0;
+    public int Wins { get; set; }
+    public int Losses { get; set; }
+    public int Draws { get; set; }
+}
+
+
+@code {
+
+     
+    public string WinnerId;
+    public string LoserId; 
+
+}
+
+
+@code {
+
+  bool drawmade = false;
+}
+
+
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text
+
+@code 
+{
+    public HubConnection hubConnection; 
+}
+
+@code
+{
+    protected async override Task OnInitializedAsync()
+    {   
+        if (WhoseOnline.Count() > 0)
+        {
+            WhoseOnline.Clear();
+        }
+
+        CurrentUserId = "";
+        CurrentUsername = ""; 
+        State = "Login";
+
+        if (CurrentUserId == "" || CurrentUsername == "" || CurrentUserId == null || CurrentUsername == null)
+        { 
+            ShowLoginDialog();
+        }   
+
+        this.InvokeAsync(() => StateHasChanged());
+
+        hubConnection = new HubConnectionBuilder().WithUrl(NavigationManager.ToAbsoluteUri("/chathub")).WithAutomaticReconnect().Build();
+
+        if (hubConnection is not null)
+        {
+            try
+            {
+                hubConnection.On<string>("ReceiveString", async (Msg) =>
+                {
+                    if (Msg.Split(':')[0] == "WHO_IS_ONLINE")
+                    {
+                        if (Msg.Split(':')[1] != CurrentUserId)
+                        {
+                            await Task.Run(() => { hubConnection.SendAsync("SendString", $"IAM_ONLINE:{CurrentUserId}:{CurrentUsername}"); }); 
+                        } 
+                        this.InvokeAsync(() => StateHasChanged());
+                    } 
+                    else if (Msg.Split(':')[0] == "IAM_ONLINE")
+                    {
+                        if (Msg.Split(':')[1] != CurrentUserId)
+                        {
+                            if (!String.IsNullOrEmpty(Msg.Split(':')[1]) && !String.IsNullOrEmpty(Msg.Split(':')[2]))
+                            {
+                                WhoseOnline.Add(new User_ { Id = Msg.Split(':')[1], Username = Msg.Split(':')[2] });
+                                this.InvokeAsync(() => StateHasChanged());
+                            } 
+                        }
+                    }
+                    else if (Msg.Split(':')[0] == "LETSPLAY")
+                    {
+                        if (Msg.Split(':')[1] == CurrentUserId && State != "Playing")
+                        {
+                            State = "Playing";
+                            CurrentOpponent_UserId = Msg.Split(':')[2];
+                            CloseLoginDialog();
+                            CloseMessage();
+                            CloseSignUpDialog();
+                            ClosePlayerPick();
+                            PlayerPosition = 2;
+                            await Task.Run(() => { hubConnection.SendAsync("SendString", $"ACCEPT_PLAY_REQUEST:{CurrentUserId}:{Msg.Split(':')[2]}"); });
+                            this.InvokeAsync(() => StateHasChanged());
+                        }
+                        else
+                        {
+                            await Task.Run(() => { hubConnection.SendAsync("SendString", $"IM_BUSY:{CurrentUsername}:{Msg.Split(':')[2]}"); });
+                            this.InvokeAsync(() => StateHasChanged());
+                        }
+                    }
+                    else if (Msg.Split(':')[0] == "IM_BUSY" && Msg.Split(':')[2] == CurrentUserId)
+                    {
+                        ShowMessage($"{Msg.Split(':')[1]} is currently playing!");
+                    }
+                    else if (Msg.Split(':')[0] == "ACCEPT_PLAY_REQUEST" && Msg.Split(':')[2] == CurrentUserId)
+                    {
+                        if (true)
+                        { 
+                            State = "Playing";
+                            PlayerPosition = 1;
+                            CloseLoginDialog();
+                            CloseMessage();
+                            CloseSignUpDialog();
+                            ClosePlayerPick();
+                            CurrentOpponent_UserId = Msg.Split(':')[1];
+                            //
+                            this.InvokeAsync(() => StateHasChanged());
+                        }
+                        else
+                        {
+
+                        }
+                    }
+                    else if (Msg.Split(':')[0] == "SEND_MESSAGE")
+                    {
+                        Threads.Add($"{Msg.Split(':')[1]}: {Msg.Split(':')[2]}");
+                        this.InvokeAsync(() => StateHasChanged());
+                    }  
+
+                    else if (Msg.Split(':')[0] == "MOVE")
+                    {
+                        bool invalidmove = false;
+                        if (CurrentOpponent_UserId == Msg.Split(':')[2] || CurrentUserId == Msg.Split(':')[2]) 
+                        {
+                            if (GameMoves.Any(x => x.Move == Msg.Split(':')[3]))
+                            {
+                                invalidmove = true;
+                            }
+                            else {
+                                GameMoves.Add (
+                                   new moves {
+                                            UserId = Msg.Split(':')[2],
+                                            Move = Msg.Split(':')[3],
+                                            Char = Msg.Split(':')[1]
+                                        }
+                                ); 
+
+                                playlock = false;
+                            }
+
+                        }
+
+                        if (!invalidmove)
+                        {
+                            if (CurrentOpponent_UserId == Msg.Split(':')[2])
+                            {
+                                ShowMessage("Your Turn!");
+                                playlock = false;
+                            }
+                            else if (CurrentUserId == Msg.Split(':')[2])
+                            {
+                                playlock = true;
+                            }
+
+                            if (GameMoves.Count >= 9 && !CheckWinningMoves(CurrentUserId) && !CheckWinningMoves(CurrentOpponent_UserId))
+                            { 
+                                ShowMessage($"You Drew!");
+                                drawmade = true;
+                            }
+
+                            if (CheckWinningMoves(CurrentUserId))
+                            {
+                                WinnerId = CurrentUserId;
+                                LoserId = CurrentOpponent_UserId;
+                                 
+                                ShowMessage($"You Win!");
+                                WinMade = true; 
+                                 
+                            } 
+
+
+                            if (CheckWinningMoves(CurrentOpponent_UserId))
+                            { 
+                                ShowMessage($"{GetValueByUserId(CurrentOpponent_UserId, "Username")} Wins!");
+                                WinMade = true;
+                            }
+
+                            this.InvokeAsync(() => StateHasChanged());
+                        }
+
+                           
+                        } 
+
+                    });
+                }
+                catch
+                {
+
+                }
+        }
+       
+        await hubConnection.StartAsync();
+
+        if (hubConnection.State == HubConnectionState.Connected)
+        {
+           await Task.Run(() => { FindPlayers(); });
+        }
+        else
+        {
+            ShowMessage("SignalR Error");
+        }
+
+       
+         
+    }
+}
+
+
+
+ 
+@code
+{   
+    
+    public async Task FindPlayers()
+    {
+        WhoseOnline.Clear();
+        await Task.Run(() =>
+        {
+             hubConnection.SendAsync("SendString", $"WHO_IS_ONLINE:{CurrentUserId}");
+        });
+        this.InvokeAsync(() => StateHasChanged());
+    }
+
+
+   
+}
+
+
+
+@code 
+{
+    public bool ShowLoginDialog_ = false;
+    public string LoginDialog_Username = "";
+    public string LoginDialog_Password = "";
+
+    public void ShowLoginDialog()
+    {
+        CloseMessage();
+        CloseSignUpDialog();
+        ShowLoginDialog_ = true;
+        this.InvokeAsync(() => StateHasChanged());
+    }  
+
+    public void CloseLoginDialog()
+    {
+        ShowLoginDialog_ = false;
+        this.InvokeAsync(() => StateHasChanged());
+    }
+
+    public void AuthenticateUser()
+    {
+
+        if (AuthenticateUser(LoginDialog_Username, LoginDialog_Password))
+        {
+            State = "Chatting";
+            CurrentUserId = GetUserIdByUsernameAndPassword(LoginDialog_Username, LoginDialog_Password);
+            CurrentUsername = LoginDialog_Username;
+            CloseLoginDialog();
+            CloseSignUpDialog();
+            CloseMessage();
+            //ShowPlayerPick();
+        }
+         else
+         { 
+            ShowMessage("Error: Wrong Username/Password!");
+         }
+         LoginDialog_Username = "";
+         LoginDialog_Password = "";
+         this.InvokeAsync(() => StateHasChanged());
+       
+    }
+}
+
+   
+@if (ShowLoginDialog_)
+{
+    <div class="modal" id="login">
+        <div>
+            <p>Welcome, Please Login</p>
+            <input placeholder="username" @bind-value="LoginDialog_Username" />
+            <input placeholder="password" @bind-value="LoginDialog_Password" type="password" /> <br>
+            <button @onclick="(() => AuthenticateUser())">Sign in</button>
+            <button @onclick="(() => ShowSignUpDialog())">Sign Up</button>
+            <br>
+        </div>
+    </div>
+}
+
+  
+@code 
+{
+    public bool ShowSignUpDialog_ = false;
+    public string SignUpDialog_Username = "";
+    public string SignUpDialog_Password = "";
+    public void ShowSignUpDialog()
+    {
+        CloseMessage();
+        CloseLoginDialog();
+        ShowSignUpDialog_ = true;
+         this.InvokeAsync(() => StateHasChanged());
+    }
+
+    public void CloseSignUpDialog()
+    {
+        ShowSignUpDialog_ = false;
+       this.InvokeAsync(() => StateHasChanged());
+    }
+
+    public void SignUp()
+    { 
+        try
+        {
+            Guid randomGuid = Guid.NewGuid();
+            CreateNewUser(randomGuid.ToString(), SignUpDialog_Username, SignUpDialog_Password, "0", "0", "0");
+        }
+        catch
+        {
+            ShowMessage("Error creating new user.");
+        }
+
+        ShowMessage("Success: User Added!");
+        SignUpDialog_Username = "";
+        SignUpDialog_Password = "";
+        ShowLoginDialog();
+        this.InvokeAsync(() => StateHasChanged());
+      
+    }
+}
+
+@if (ShowSignUpDialog_)
+{
+    <div class="modal" id="signup">
+        <div>
+            <p>Sign Up</p>
+            <input placeholder="username" @bind="SignUpDialog_Username" />
+            <input placeholder="password" @bind="SignUpDialog_Password" type="password" />
+            <br>
+            <button @onclick="(() => SignUp())">Create Account</button>
+            <br>
+        </div>
+    </div> 
+}
+
+
+ 
+
+
+
+
+
+@code
+{
+    public bool ShowMessage_ = false;
+    public string Message_ { get; set; }
+    public void ShowMessage (string Message)
+    {
+        this.InvokeAsync(() => StateHasChanged());
+        if (!String.IsNullOrEmpty(Message))
+        {
+            ShowMessage_ = true;
+            Message_ = Message;
+            this.InvokeAsync(() => StateHasChanged());
+        }
+    }
+
+    int Update = 0;
+    int Update__ = 0;
+
+    public void CloseMessage()
+    {
+
+        if (WinMade)
+        { 
+            if (Update == 0)
+            {
+                double oldWinValue = Convert.ToDouble(GetValueByUserId(WinnerId, "Wins"));
+                oldWinValue = oldWinValue + 1;
+
+                ModifyUserData(WinnerId, "Wins", $"{oldWinValue}");
+
+
+                double oldLossValue = Convert.ToDouble(GetValueByUserId(LoserId, "Losses"));
+                oldLossValue = oldLossValue + 1;
+
+                ModifyUserData(LoserId, "Losses", $"{oldLossValue}");
+
+                Update++;
+            }
+            NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        }
+
+        if (drawmade)
+        {
+            if (Update__ == 0)
+            {   
+                double a = Convert.ToDouble(GetValueByUserId(CurrentUserId, "Draws"));
+                a = a + 1; 
+                ModifyUserData(CurrentUserId, "Draws", $"{a}"); 
+                Update__++; 
+            }
+
+            NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        }
+
+        
+        ShowMessage_ = false;
+        Message_ = "";
+        this.InvokeAsync(() => StateHasChanged());
+        
+        
+    }
+}
+
+@if (ShowMessage_)
+{
+    <div class="modal" id="msg">
+        <div>
+            <p class="center">@Message_</p>
+            <button @onclick="(() => CloseMessage())">Okay</button>
+        </div>
+    </div>
+}
+
+
+
+
+
+
+@code
+{
+
+    public async Task SelectOppenent (string UserId)
+    { 
+        await Task.Run(() => { hubConnection.SendAsync("SendString", $"LETSPLAY:{UserId}:{CurrentUserId}"); }); 
+        this.InvokeAsync(() => StateHasChanged());
+   }
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@code {
+
+    bool ShowPlayerPick_ = false;
+
+    public void ShowPlayerPick()
+    {
+        ShowPlayerPick_ = true;
+        this.InvokeAsync(() => StateHasChanged());
+    }
+
+    public void ClosePlayerPick()
+    {
+        ShowPlayerPick_ = false;
+        this.InvokeAsync(() => StateHasChanged());
+    }
+
+}
+
+     
+   
+@if (ShowPlayerPick_)
+{ 
+    <div class="modal" id="plypck">
+        <div>
+            <p class="center">Pick your opponent</p>
+
+            <ul>
+                @foreach (User_ u in WhoseOnline.DistinctBy(x => x.Username))
+                {
+                    if (CurrentUserId != u.Id)
+                    {
+                        <li>@u.Username &nbsp <button @onclick="(() => SelectOppenent(u.Id))">Play</button></li>
+                    }
+                   
+                } 
+            </ul>
+
+            <br />
+            <button @onclick="(() => FindPlayers())">Refresh</button>
+            <button @onclick="(() => ClosePlayerPick())">Close</button>
+        </div>
+    </div>    
+}
+
+
+
+
+
+
+@code 
+{
+    public async Task CancelGame()
+    {
+        State = "Login";
+        CurrentOpponent_UserId = "";
+        CloseLoginDialog();
+        playlock = false;
+        CloseMessage();
+        CloseSignUpDialog();
+        PlayerPosition = 0;
+        ShowPlayerPick();
+        FindPlayers(); 
+        this.InvokeAsync(() => StateHasChanged());
+    }
+}
+
+
+
+
+@code {
+
+    static string GetUserScoresString(List<UserScore> userScores)
+    {
+        StringBuilder sb = new StringBuilder();
+
+        foreach (UserScore userScore in userScores)
+        {
+            sb.AppendLine($"Username: {userScore.ID}, Score: {userScore.Score}       "); 
+            sb.AppendLine($"       ");
+            sb.AppendLine($"       ");
+        }
+
+        return sb.ToString();
+    }
+
+
+    public void ListScores()
+    {
+         List<UserScore> userScores = GetAllUserScores(); 
+         ShowMessage(GetUserScoresString(userScores));
+    }
+
+
+}
+
+
+@code {
+
+
+    public string GetChar()
+    {
+        if (PlayerPosition == 1)
+        {
+            return "X";
+        }
+        else
+        {
+            return "O";  
+        }
+    }
+
+}
+
+
+
+
+
+<div class="game">
+
+        <div class="grid">
+            <div>
+                <div>
+                    <div class="bnr hide">Winner: Player 1 (Nkosi)</div>
+
+                    @if (State == "Playing")
+                    {
+                        if (PlayerPosition == 2)
+                        { 
+                            <div class="bnr-2">
+                                <p>Player 1: @GetValueByUserId(CurrentOpponent_UserId, "Username") [X]</p>
+                                <p>Player 2: @CurrentUsername (You) [O]</p>
+                            </div>
+                        }
+                        else if (PlayerPosition == 1)
+                        {
+                            <div class="bnr-2">
+                                <p>Player 1: @CurrentUsername (You) [X]</p>
+                                <p>Player 2: @GetValueByUserId(CurrentOpponent_UserId, "Username") [O]</p>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="bnr-2">
+                            <p>Player 1: @CurrentUsername (You)</p>
+                            <p>Player 2: ...</p>
+                        </div>
+                    }
+                    
+                </div>  
+                <div class="grid-ch-01">
+                     <div class="box" id="a1" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "a1"))'>@IsActive("a1")</div>
+                     <div class="box" id="a2" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "a2"))'>@IsActive("a2")</div>
+                     <div class="box" id="a3" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "a3"))'>@IsActive("a3")</div>
+                     <div class="box" id="b1" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "b1"))'>@IsActive("b1")</div>
+                     <div class="box" id="b2" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "b2"))'>@IsActive("b2")</div>
+                     <div class="box" id="b3" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "b3"))'>@IsActive("b3")</div>
+                     <div class="box" id="c1" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "c1"))'>@IsActive("c1")</div>
+                     <div class="box" id="c2" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "c2"))'>@IsActive("c2")</div>
+                     <div class="box" id="c3" @onclick='(() => MakeMove(GetChar(), CurrentUserId, "c3"))'>@IsActive("c3")</div>
+                </div>
+
+                <br />
+
+                <button @onclick="CancelGame">Cancel Game</button>
+            </div>
+        </div>
+        <div class="chat">
+             
+            @code
+            {
+                public List<string> Threads = new List<string>();
+
+                public string InputText { get; set; }
+
+                public async Task Send() {
+
+                    if (InputText == "!join")
+                    {
+                        ShowPlayerPick();
+                    }
+                    else if (InputText == "!scores")
+                    {
+                        ListScores();
+                    }
+                    else
+                    {
+                        if (!String.IsNullOrEmpty(InputText))
+                        {  
+                            hubConnection.SendAsync("SendString", $"SEND_MESSAGE:{CurrentUsername}:{InputText}"); 
+                            InputText = "";
+                            this.InvokeAsync(() => StateHasChanged());
+                        } 
+                    }
+
+                }
+
+                public  List<string> ThreadsR()
+                {
+                    List<string> R = Threads;
+                    R.Reverse();
+                    return R;
+                }
+            }
+              
+            <div class="threads">
+                 
+                @foreach (string s in ThreadsR())
+                {
+                    <p>@s</p>
+                }
+
+            </div>
+             
+            <div class="s-box">
+                <input @bind-value="InputText" placeholder="Enter text here..."/>
+                <button @onclick="Send">Send</button>
+            </div>
+        </div>
+
+
+    </div>
+
+
+    <div class="state">State: @State</div>
+
+
+
+ 

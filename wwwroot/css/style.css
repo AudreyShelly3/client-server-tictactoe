@@ -1,0 +1,190 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+
+
+html {
+    height: 100%;
+    width: 100%;
+    margin: 0px;
+    padding: 0px;
+    font-family: "Roboto", sans-serif;
+    font-style: normal;
+}
+
+
+body {
+    height: 100%;
+    width: 100%;
+    margin: 0px;
+    padding: 0px;
+}
+
+.game {
+    height: 100%;
+    width: 100%;
+    background-color: white;
+    display: flex;
+}
+
+    .game .grid {
+        background-color: rgb(136, 136, 136);
+        width: 50%;
+        height: 100;
+        max-width: 550px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .game .chat {
+        width: 50%;
+        height: 400px;
+        padding: 10px;
+    }
+
+
+
+
+        .game .chat .threads {
+            padding-bottom: 5px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+
+            .game .chat .threads p {
+                margin: 0px;
+                padding: 0px;
+                padding: 4px 3px;
+                font-size: 23px;
+            }
+
+
+        .game .chat .s-box {
+            height: max-content;
+        }
+
+
+            .game .chat .s-box button {
+                height: 36px;
+            }
+
+            .game .chat .s-box input {
+                width: 270px;
+                height: 30px;
+            }
+
+
+    .game .grid .bnr {
+        background-color: white;
+        height: max-content;
+        text-align: center;
+        padding: 10px 16px;
+        border-radius: 100px;
+        font-weight: 500;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .game .grid .bnr-2 {
+        background-color: white;
+        height: max-content;
+        text-align: center;
+        padding: 10px 16px;
+        border-radius: 10px;
+        font-weight: 500;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+
+    .game .grid .grid-ch-01 {
+        display: grid;
+        grid-template-columns: repeat(3, 0.001fr);
+        gap: 0px; /* Adjust the gap as needed */
+    }
+
+        .game .grid .grid-ch-01 .box {
+            background-color: white;
+            width: 70px;
+            height: 70px;
+            border-style: solid;
+            border-width: 2px;
+            margin-left: -0.7px;
+            transition: 0.3s;
+            font-size: 60px;
+            text-align: center;
+        }
+
+
+            .game .grid .grid-ch-01 .box:hover {
+                background-color: rgb(217, 217, 217);
+            }
+
+
+.modal {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.475);
+}
+
+    .modal div {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        width: 230px;
+        height: max-content;
+        position: absolute;
+        border-radius: 10px;
+        padding: 5px 15px;
+        padding-bottom: 20px;
+    }
+
+        .modal div input {
+            border-style: solid;
+        }
+
+        .modal div input {
+            width: 95%;
+            margin-bottom: 10px;
+        }
+
+
+.hide {
+    display: none !important;
+}
+
+.center {
+    text-align: center !important;
+}
+
+.flex {
+    display: flex;
+}
+
+
+.modal div ul {
+    list-style: none;
+}
+
+    .modal div ul li {
+        margin-bottom: 10px;
+    }
+
+
+
+.state { 
+    background-color: red;
+    padding: 5px 10px;
+    top: 0px;
+    left: 0px;
+    position: absolute;
+    font-size: 23px;
+    width: max-content;
+    position: absolute;
+    color: white;
+    font-weight: 500;
+}
